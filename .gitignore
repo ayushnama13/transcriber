@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 out/
+work/
+voices/
+*.wav
+*.mp3
