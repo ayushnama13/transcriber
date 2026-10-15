@@ -6,3 +6,4 @@ work/
 voices/
 *.wav
 *.mp3
+bin/

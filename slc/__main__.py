@@ -59,7 +59,23 @@ def main():
     cal_parser.add_argument("--aliases", help='JSON map, e.g. {"Chair": "Rahul Sharma"}')
     cal_parser.add_argument("--min-score", type=float, default=70)
 
+    dia_parser = subparsers.add_parser("diarize", help="Who spoke when (after align) -> turns.json")
+    dia_parser.add_argument("workdir", help="Meeting work dir containing alignment.json")
+    dia_parser.add_argument("--block-min", type=float, default=30, help="Diarize in blocks of this many minutes")
+    dia_parser.add_argument("--link-threshold", type=float, default=0.5,
+                            help="Cosine needed to join speakers across blocks")
+    dia_parser.add_argument("--cpu", action="store_true", help="Do not use the GPU")
+
     args = parser.parse_args()
+
+    if args.command == "diarize":
+        if not os.path.isfile(os.path.join(args.workdir, "alignment.json")):
+            print(f"error: {args.workdir}/alignment.json not found; run align first", file=sys.stderr)
+            sys.exit(1)
+        from slc.diarize import diarize_meeting
+        diarize_meeting(args.workdir, block_s=args.block_min * 60, gpu=not args.cpu,
+                        link_threshold=args.link_threshold)
+        sys.exit(0)
 
     if args.command == "calibrate":
         sys.exit(cmd_calibrate(args))
