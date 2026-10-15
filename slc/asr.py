@@ -14,6 +14,7 @@ from slc.audio import read_segment
 
 SR = 16000
 MAX_PIECE_S = 240.0  # Moonshine is run on <= 4 min pieces, as in transcribe.py
+_FLUSH = [0.0] * SR
 
 
 def speaker_channels(turns):
@@ -54,25 +55,48 @@ def _pieces(start, end):
     return list(zip(edges[:-1], edges[1:]))
 
 
-def transcribe_audio(transcriber, audio):
+def transcribe_lines(transcriber, audio):
+    """[(start_s, end_s, text)] relative to the start of audio."""
     if len(audio) < SR * 0.2:
-        return ""
+        return []
     res = transcriber.transcribe_without_streaming(audio.astype(np.float32).tolist(), SR)
-    return " ".join((ln.text or "").strip() for ln in res.lines if (ln.text or "").strip())
+    # Moonshine carries decoder state across calls and the next clip then often
+    # starts with a phantom "Yeah"; decoding a second of silence resets it.
+    transcriber.transcribe_without_streaming(_FLUSH, SR)
+    out = []
+    for ln in res.lines:
+        text = (ln.text or "").strip()
+        if text:
+            out.append((float(ln.start_time), float(ln.start_time + ln.duration), text))
+    return out
+
+
+def transcribe_audio(transcriber, audio):
+    return " ".join(t for _, _, t in transcribe_lines(transcriber, audio))
 
 
 def transcribe_turns(transcriber, turns, aligned_dir, pad=0.15, progress=None):
-    """Returns [{"text", "channel"}] aligned with turns."""
+    """Returns [{"text", "channel", "lines": [{"start", "end", "text"}]}] aligned with turns.
+
+    Line times are absolute (meeting timeline), clamped to the turn.
+    """
     spk = speaker_channels(turns)
     out = []
     for i, t in enumerate(turns):
         ch = pick_channel(t, spk)
         wav = os.path.join(aligned_dir, f"rec{ch}.wav")
-        texts = []
+        lines = []
         for a, b in _pieces(t["start"], t["end"]):
-            audio = read_segment(wav, max(0.0, a - pad), b + pad)
-            texts.append(transcribe_audio(transcriber, audio))
-        out.append({"text": " ".join(x for x in texts if x), "channel": ch})
+            a0 = max(0.0, a - pad)
+            for s, e, text in transcribe_lines(transcriber, read_segment(wav, a0, b + pad)):
+                # A line lying wholly in the pad is a neighbour's speech or a
+                # decoder artifact (Moonshine leaks a "Yeah" from the previous
+                # call into the leading pad), not this turn.
+                if a0 + e <= t["start"] + 0.02 or a0 + s >= t["end"] - 0.02:
+                    continue
+                lines.append({"start": round(float(min(max(a0 + s, t["start"]), t["end"])), 3),
+                              "end": round(float(min(max(a0 + e, t["start"]), t["end"])), 3), "text": text})
+        out.append({"text": " ".join(ln["text"] for ln in lines), "channel": ch, "lines": lines})
         if progress:
             progress(i + 1, len(turns))
     return out
