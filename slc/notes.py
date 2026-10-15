@@ -26,7 +26,7 @@ def parse_notes(path):
     with open(path, encoding="utf-8") as f:
         for raw in f:
             line = raw.strip()
-            if not line:
+            if not line or line.startswith("#"):  # blank, or a "# Agenda item" heading
                 continue
             line = _BULLET.sub("", line)
             t = None

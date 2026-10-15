@@ -20,7 +20,8 @@ SEGS = [
     {"id": 5, "start": 22.0, "end": 26.0, "speaker": "Rahul Sharma", "text": "because the vendor raised prices by twenty percent.", "flags": []},
 ]
 
-NOTES_TXT = """- Rahul: "you are doing good wrok"
+NOTES_TXT = """# Agenda: hostel issues
+- Rahul: "you are doing good wrok"
 * [00:00:09] Priya: I second the motion
 Chair: Motion passes
 Dr. Rahul Sharma: the mess committee budget needs to be revised because
