@@ -25,6 +25,12 @@ with `soundfile`.
 | `slc/review/` | Flask review app for verifiers |
 | `slc/__main__.py` | CLI: `python -m slc <cmd>` |
 
+### Voice library (`slc/voicelib.py`)
+- Directory-backed library (`library.json` + `emb/<slug>.npy`).
+- Cosine similarity identification with individual vector top-3 mean scoring and centroid scoring.
+- Hungarian algorithm for one-to-one cluster naming against library members.
+- Automatic persistence and `learn_from_review` vector accumulation.
+
 ## Meeting work dir: `work/<meeting>/`
 
 ```
