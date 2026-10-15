@@ -5,6 +5,45 @@ import argparse
 from slc.audio import to_wav16k
 from slc.align import align_recordings
 
+def cmd_calibrate(args):
+    from slc.notes import apply_flags, calibrate, harvest_enrollment, match_notes, parse_notes
+
+    tpath = os.path.join(args.workdir, "transcript.json")
+    for p in (tpath, args.notes, args.aliases):
+        if p and not os.path.isfile(p):
+            print(f"error: not found: {p}", file=sys.stderr)
+            return 1
+    with open(tpath) as f:
+        transcript = json.load(f)
+    aliases = None
+    if args.aliases:
+        with open(args.aliases) as f:
+            aliases = json.load(f)
+    notes = parse_notes(args.notes)
+    if not notes:
+        print("error: no 'Name: text' lines found in notes", file=sys.stderr)
+        return 1
+    segs = transcript["segments"]
+    matches = match_notes(notes, segs, min_score=args.min_score)
+    report = calibrate(notes, segs, matches, aliases)
+    report["harvest"] = harvest_enrollment(matches, notes, segs)
+    apply_flags(transcript, report, notes, matches)
+
+    with open(os.path.join(args.workdir, "calibration.json"), "w") as f:
+        json.dump(report, f, indent=2)
+    tmp = tpath + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(transcript, f, indent=2)
+    os.replace(tmp, tpath)
+
+    print(f"notes: {report['n_notes']}  matched: {report['n_matched']} ({report['coverage']:.1%})")
+    print(f"speaker accuracy on matched notes: {report['speaker_accuracy']:.1%}")
+    for c in report["confusion"][:10]:
+        print(f"  noted {c['note_name']!r} but labelled {c['predicted']!r}: {c['count']}x")
+    print(f"enrollment clips harvestable: {len(report['harvest'])}")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="SLC meeting pipeline CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -14,7 +53,16 @@ def main():
     align_parser.add_argument("--out", required=True, help="Working directory output path")
     align_parser.add_argument("--reference", type=int, default=0, help="Reference recorder index")
 
+    cal_parser = subparsers.add_parser("calibrate", help="Score speaker labels against handwritten notes")
+    cal_parser.add_argument("workdir", help="Meeting work dir containing transcript.json")
+    cal_parser.add_argument("--notes", required=True, help='Notes file, one "Name: what they said" per line')
+    cal_parser.add_argument("--aliases", help='JSON map, e.g. {"Chair": "Rahul Sharma"}')
+    cal_parser.add_argument("--min-score", type=float, default=70)
+
     args = parser.parse_args()
+
+    if args.command == "calibrate":
+        sys.exit(cmd_calibrate(args))
 
     if args.command == "align":
         out_dir = args.out
