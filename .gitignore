@@ -7,3 +7,10 @@ voices/
 *.wav
 *.mp3
 bin/
+recordings/
+*.m4a
+*.aac
+*.ogg
+*.opus
+*.flac
+*.amr

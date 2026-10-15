@@ -42,7 +42,10 @@ def load_transcriber(model="medium", keyterms=None, context=None):
     arch = {"medium": ModelArch.MEDIUM_STREAMING, "base": ModelArch.BASE, "tiny": ModelArch.TINY}[model]
     path, arch = get_model_for_language("en", arch)
     tr = Transcriber(model_path=path, model_arch=arch)
-    if keyterms:
+    if keyterms and model != "medium":
+        # Moonshine only supports key terms on the medium streaming model.
+        print(f"note: key terms ignored for the {model} model (medium only)", flush=True)
+    elif keyterms:
         tr.set_keyterms([k.replace(",", " ").strip() for k in keyterms if k.strip()])
     elif context:
         tr.set_context(context)
