@@ -1,6 +1,6 @@
 """Review web app: 7-10 checkers each take a part, listen, fix text and names.
 
-    python -m slc review WORKDIR [--library LIB] [--host 0.0.0.0] [--port 8000]
+    python -m slc review WORKDIR [--library LIB] [--port 8000]   (localhost only)
 
 Every change is applied to transcript.json (atomic write) and appended to
 edits.jsonl (who, when, before -> after), so nothing a reviewer does is lost

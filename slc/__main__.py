@@ -127,10 +127,8 @@ def cmd_review(args):
         need_files(os.path.join(args.workdir, f))
     from slc.review import create_app
     app = create_app(args.workdir, library=args.library)
-    print(f"review app: http://{args.host}:{args.port}/  (Ctrl+C to stop)")
-    if args.host != "127.0.0.1":
-        print("note: no login - anyone on this network can open and edit the transcript")
-    app.run(host=args.host, port=args.port, threaded=True)
+    print(f"review app: http://127.0.0.1:{args.port}/  (Ctrl+C to stop)")
+    app.run(host="127.0.0.1", port=args.port, threaded=True)  # localhost only: no login yet
 
 
 def cmd_library(args):
@@ -204,7 +202,6 @@ def main():
     s = sub.add_parser("review", help="Web app for checkers to correct text and names")
     s.add_argument("workdir")
     s.add_argument("--library", help="Voice library (adds its names to the speaker list)")
-    s.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to let checkers on the LAN connect")
     s.add_argument("--port", type=int, default=8000)
     s.set_defaults(fn=cmd_review)
 
