@@ -1,5 +1,9 @@
 # Transcriber
 
+SLC meeting pipeline: `python -m slc run AUDIO --out WORKDIR --terms terms.txt` (Whisper large-v3-turbo on GPU by default, `--model medium` for Moonshine). See DESIGN.md.
+
+Legacy single-file tool:
+
 CLI tool to transcribe long English audio files using Moonshine Voice with smart chunking and silence-based cutting.
 
 ## Usage

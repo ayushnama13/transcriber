@@ -45,3 +45,12 @@ def iter_blocks(path, block_s=60):
         block = read_segment(path, start_s, end_s)
         yield start_s, block
         start_s += block_s
+
+def level_wav(src, dst):
+    """Even out loudness (ffmpeg dynaudnorm, streamed) so far-from-mic speakers are not
+    drowned by near ones; gain is capped at ~24 dB so room noise is not blown up."""
+    cmd = ["ffmpeg", "-y", "-i", str(src), "-af", "dynaudnorm=f=500:g=31:m=15:p=0.9",
+           "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", str(dst)]
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed:\n{res.stderr}")

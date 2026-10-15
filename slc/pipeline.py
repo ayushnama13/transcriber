@@ -47,7 +47,7 @@ def prepare_alignment(recordings, workdir, reference=0):
 
 
 def keyterms(lib=None, terms_file=None, limit=150):
-    """Names of enrolled people + campus terms, for Moonshine's decoder bias."""
+    """Names of enrolled people + campus terms, for the ASR decoder bias."""
     terms = []
     if terms_file:
         with open(terms_file, encoding="utf-8") as f:
@@ -70,7 +70,7 @@ def build_segments(turns, asr, speakers, conf, max_seg_s=30.0, part_s=1800.0, lo
     turn_segs = {}
     for t, a, c in zip(turns, asr, conf):
         spk = speakers[t["cluster"]]
-        # Split long turns at Moonshine line boundaries for reviewable clips.
+        # Split long turns at ASR line boundaries for reviewable clips.
         groups, cur = [], []
         for ln in a.get("lines") or []:
             if cur and ln["end"] - cur[0]["start"] > max_seg_s:
@@ -82,8 +82,8 @@ def build_segments(turns, asr, speakers, conf, max_seg_s=30.0, part_s=1800.0, lo
         if not groups:
             continue  # no speech recognised in this turn
         for gi, g in enumerate(groups):
-            start = t["start"] if gi == 0 else g[0]["start"]
-            end = t["end"] if gi == len(groups) - 1 else groups[gi + 1][0]["start"]
+            start = min(t["start"], g[0]["start"]) if gi == 0 else g[0]["start"]
+            end = max(t["end"], g[-1]["end"]) if gi == len(groups) - 1 else groups[gi + 1][0]["start"]
             flags = []
             if t.get("overlap"):
                 flags.append("crosstalk")
@@ -115,7 +115,19 @@ def name_speakers(workdir, lib):
     return turns, speakers, conf
 
 
-def run_meeting(recordings, workdir, library=None, terms_file=None, model="medium",
+WHISPER = ("turbo",)
+
+
+def _free_gpu():
+    """Hand diarization's cached GPU memory back before loading Whisper (4 GB card)."""
+    try:
+        import torch
+        torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def run_meeting(recordings, workdir, library=None, terms_file=None, model="turbo",
                 part_min=30.0, gpu=True, reference=0, force=False, meeting=None):
     os.makedirs(workdir, exist_ok=True)
     t0 = time.time()
@@ -145,6 +157,17 @@ def run_meeting(recordings, workdir, library=None, terms_file=None, model="mediu
     named = sum(1 for s in speakers.values() if s["source"] == "voicelib")
     _log(f"speakers: {len(speakers)} clusters, {named} matched to the voice library")
 
+    if not os.path.exists(p("asr.json")) and model in WHISPER:
+        from slc.asr import hotword_string, load_whisper, whisper_meeting
+        hot = hotword_string(keyterms(lib, terms_file))
+        if gpu:
+            _free_gpu()
+        pipe, device = load_whisper(model, gpu=gpu)
+        _log(f"loaded Whisper {model} on {device} ({len(hot.split(',')) if hot else 0} hotwords)")
+        t_asr = time.time()
+        asr = whisper_meeting(pipe, turns, os.path.join(workdir, "aligned"), workdir, hotwords=hot, log=_log)
+        _log(f"  ASR done in {time.time() - t_asr:.0f}s")
+        _save(p("asr.json"), asr)
     if not os.path.exists(p("asr.json")):
         from slc.asr import load_transcriber, transcribe_turns
         terms = keyterms(lib, terms_file)

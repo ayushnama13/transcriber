@@ -18,7 +18,7 @@ with `soundfile`.
 | `slc/align.py` | align N recorders to a reference timeline (offset + linear clock drift) |
 | `slc/diarize.py` | pyannote diarization (with overlap) on the reference mix → turns + embeddings |
 | `slc/voicelib.py` | voice library: enroll, identify (cosine), cluster unknowns |
-| `slc/asr.py` | Moonshine ASR backend, keyterms; transcribe one turn |
+| `slc/asr.py` | ASR: Whisper large-v3-turbo (faster-whisper, int8 on GPU, default) per recorder channel with word timestamps → words assigned to diarized turns; junk/repeat filter; Moonshine per-turn backend kept (`--model medium`) |
 | `slc/notes.py` | parse handwritten notes, match to transcript, calibration metrics, harvest enrollment clips |
 | `slc/pipeline.py` | orchestration of one meeting |
 | `slc/export.py` | md / docx / srt / txt |
@@ -41,6 +41,8 @@ alignment.json         see below
 turns.json             diarization output (see below)
 embeddings.npy         float32 [n_turns, D]; row i <-> turns[i]
 speakers.json          {cluster_label: {"name", "score", "source"}}
+words_rec{i}.json      Whisper word cache for channel i: [{"start","end","word","prob"}]
+asr.json               per-turn text rows built from the words (ASR is skipped if present)
 transcript.json        final segments (see below); edited in place by review app
 edits.jsonl            append-only log of reviewer edits
 ```
@@ -77,3 +79,13 @@ Model: a sample at reference time `t` is found in recorder *i* at its own time
 2. For each speaker in an overlap, transcribe from the recorder where that
    speaker's own (non-overlapped) speech is loudest — spatial separation.
 3. Later/optional: neural separation on flagged regions only.
+
+## ASR (Whisper large-v3-turbo)
+- Each channel that some turn reads is loudness-levelled (ffmpeg `dynaudnorm`)
+  and transcribed whole, in ~10 min blocks cut at the quietest point, with
+  word timestamps, hotwords from `--terms`, `condition_on_previous_text=False`.
+- Junk filter per segment (low avg_logprob / high no_speech_prob / known
+  hallucination phrases) and collapse of n-gram loops repeated >2 times.
+- Each word goes to exactly one turn on that channel (midpoint inside the turn,
+  sticky to the previous word's turn, else longest covering turn), so a single
+  recorder never yields duplicate text across overlapped turns.

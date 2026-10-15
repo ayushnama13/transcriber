@@ -153,7 +153,8 @@ def main():
     s.add_argument("--out", required=True, help="Meeting work dir")
     s.add_argument("--library", help="Voice library dir (enrolled voices)")
     s.add_argument("--terms", help="Text file: one name/acronym/term per line (ASR bias)")
-    s.add_argument("--model", default="medium", choices=["medium", "base", "tiny"])
+    s.add_argument("--model", default="turbo", choices=["turbo", "medium", "base", "tiny"],
+                   help="turbo = Whisper large-v3-turbo on GPU (default); medium/base/tiny = Moonshine on CPU")
     s.add_argument("--part-min", type=float, default=30, help="Review part length (minutes)")
     s.add_argument("--reference", type=int, default=0)
     s.add_argument("--name", help="Meeting title")
