@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mute:#626b7c;--line:#dde1e8;--acc:#2456c9;--accink:#fff;
+  --ok:#e7f6ec;--okb:#2e9b57;--warn:#fff4e0;--warnb:#d98a00;--bad:#fdeaea;--badb:#c0392b;--hi:#fff9d6;--chip:#eef1f6}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--ink:#e6e9ef;--mute:#9aa3b2;--line:#323947;
+  --acc:#6d95f0;--accink:#0b1020;--ok:#16301f;--okb:#4cc27a;--warn:#33270f;--warnb:#f0b03c;--bad:#3a1d1d;--badb:#ef6b5c;
+  --hi:#33300f;--chip:#2a303b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;min-height:40px}
+button.primary{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:600}
+button.ok{background:var(--okb);color:#fff;border-color:var(--okb)}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+h1{font-size:17px;margin:0}
+.mute{color:var(--mute);font-size:14px}
+.bar{height:6px;background:var(--chip);border-radius:3px;overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--okb);width:0}
+#unsaved{font-size:14px;font-weight:600}
+#unsaved.dirty{color:var(--badb)}#unsaved.clean{color:var(--okb)}
+#banner{display:none;background:var(--warn);border-bottom:1px solid var(--warnb);padding:8px 16px;font-size:14px}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 16px 0}
+nav button{white-space:nowrap;font-size:14px}
+nav button.on{border-color:var(--acc);box-shadow:inset 0 -3px 0 var(--acc)}
+#player{position:sticky;top:var(--hdr,96px);z-index:4;background:var(--bg);padding:8px 16px;border-bottom:1px solid var(--line)}
+audio{width:100%;max-width:640px;height:40px}
+main{padding:12px 16px 120px;max-width:900px;margin:0 auto}
+.seg{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+.seg.flagged{border-left-color:var(--warnb)}
+.seg.done{border-left-color:var(--okb);background:var(--ok)}
+.seg.playing{outline:3px solid var(--acc)}
+.seg.focus{box-shadow:0 0 0 2px var(--acc)}
+.time{font-variant-numeric:tabular-nums;color:var(--mute);font-size:14px;min-width:70px}
+.spk{width:min(240px,100%);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font-weight:600}
+.chip{font-size:12px;padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--mute)}
+.chip.x{background:var(--warn);color:var(--ink)}
+textarea{width:100%;margin:8px 0;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);resize:vertical;min-height:60px}
+.note{width:100%;padding:6px 8px;border:1px dashed var(--line);border-radius:6px;background:transparent;font-size:14px}
+.changed{font-size:12px;color:var(--acc)}
+.alsoset{font-size:13px;margin-top:4px}
+.alsoset button{min-height:32px;padding:4px 10px;font-size:13px}
+#help{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10;display:none;align-items:center;justify-content:center;padding:16px}
+#help>div{background:var(--card);border-radius:12px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:18px 20px}
+#help ol{padding-left:20px}#help li{margin:6px 0}
+kbd{background:var(--chip);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:13px}
+@media (max-width:600px){h1{font-size:15px}header{position:static}#player{top:0!important;padding:6px 16px}main{padding-top:4px}}
+</style>
+</head>
+<body>
+<header id="hdr">
+  <div class="row">
+    <div class="grow"><h1 id="title"></h1><div class="mute" id="progress"></div></div>
+    <span id="unsaved" class="clean"></span>
+    <button class="primary" id="dl">Download my edits</button>
+    <button id="helpbtn" title="How to use this page">Help</button>
+  </div>
+  <div class="bar"><i id="pbar"></i></div>
+</header>
+<div id="banner"></div>
+<nav id="tabs"></nav>
+<div id="player">
+  <div class="row">
+    <audio id="audio" controls preload="auto"></audio>
+    <label class="mute">Speed <select id="speed"><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option></select></label>
+    <label class="mute"><input type="checkbox" id="cont"> keep playing</label>
+  </div>
+</div>
+<main id="list"></main>
+<datalist id="names"></datalist>
+<input type="file" id="loadfile" accept=".json,application/json" hidden>
+
+<div id="help"><div>
+  <h2 style="margin-top:0">How to review</h2>
+  <ol>
+    <li>Pick a piece from the tabs at the top. Each line is one stretch of speech.</li>
+    <li>Tap <b>▶ Play</b> on a line and listen. Fix the words in the box so they match <b>exactly</b> what was said, including repeats and "umm" only if they matter. Do not summarise.</li>
+    <li>Set the <b>speaker</b>: type or pick the name or role, e.g. <i>Sindhu HL</i>, <i>HOS</i>, <i>RAS</i>. "Unknown A/B/C" are guesses from the computer; the same letter is usually the same voice within a piece.</li>
+    <li>When the line is right, tap <b>✓ Confirm</b>. It turns green.</li>
+    <li>Can't make it out? Write what you can, put <b>[unclear]</b> for the missing words, and add a short note.</li>
+    <li>Orange lines ("several voices") are where people talk over each other: check carefully who said what.</li>
+    <li>Your work is kept in this browser, but <b>tap "Download my edits" and send that file to the coordinator</b> when you stop, even if you are not finished. Send the newest file each time.</li>
+  </ol>
+  <p class="mute">Laptop shortcuts: <kbd>Ctrl</kbd>+<kbd>Space</kbd> play the line you are in, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> confirm and jump to the next line.</p>
+  <p class="mute">Switching device? Open your page on the new device and use <a href="#" id="loadlink">Load an edits file</a> to continue from your last downloaded file.</p>
+  <button class="primary" id="helpok">Got it</button>
+</div></div>
+
+<script id="kit" type="application/json">__KIT_DATA__</script>
+<!--__AUDIO__-->
+<script>
+(function(){
+const D = JSON.parse(document.getElementById('kit').textContent);
+const KEY = 'slckit:' + D.kit_id;
+const $ = id => document.getElementById(id);
+const audio = $('audio');
+let edits = {}, meta = {lastDownload: 0, lastChange: 0, helpSeen: false}, storageOk = true;
+let cur = 0, playEnd = null, playingKey = null, focusKey = null;
+const urls = {};
+const orig = {};
+D.pieces.forEach(p => p.segments.forEach(s => orig[p.pid + ':' + s.id] = s));
+
+function el(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  for (const k in (attrs || {})) { if (k === 'class') e.className = attrs[k]; else if (k in e) e[k] = attrs[k]; else e.setAttribute(k, attrs[k]); }
+  kids.forEach(c => c != null && e.append(c));
+  return e;
+}
+function hms(t){ t = Math.max(0, Math.floor(t)); const h = Math.floor(t/3600), m = Math.floor(t%3600/60), s = t%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
+function val(key, f){ const e = edits[key]; return e && e[f] !== undefined ? e[f] : orig[key][f]; }
+
+function load(){
+  try { const raw = localStorage.getItem(KEY); if (raw) { const o = JSON.parse(raw); edits = o.edits || {}; meta = Object.assign(meta, o.meta || {}); } }
+  catch (e) { storageOk = false; }
+  try { localStorage.setItem(KEY + ':probe', '1'); localStorage.removeItem(KEY + ':probe'); } catch (e) { storageOk = false; }
+  if (!storageOk) { const b = $('banner'); b.style.display = 'block';
+    b.textContent = 'This browser is not keeping your work between visits. Tap "Download my edits" often and send the file, or open this page in Chrome / Edge / Firefox.'; }
+}
+function persist(){ try { localStorage.setItem(KEY, JSON.stringify({edits, meta})); } catch (e) {} }
+
+function setField(key, f, v){
+  const e = edits[key] || (edits[key] = {});
+  e[f] = v; e.t = Date.now() / 1000;
+  meta.lastChange = Date.now(); persist(); refreshTop();
+}
+
+function counts(pid){
+  let done = 0, total = 0;
+  D.pieces.forEach(p => { if (pid && p.pid !== pid) return; p.segments.forEach(s => { total++; done += !!val(p.pid + ':' + s.id, 'reviewed'); }); });
+  return [done, total];
+}
+function refreshTop(){
+  const [d, t] = counts();
+  $('progress').textContent = d + ' of ' + t + ' lines confirmed · ' + D.pieces.length + ' pieces';
+  $('pbar').style.width = (t ? 100 * d / t : 0) + '%';
+  const u = $('unsaved');
+  if (meta.lastChange > meta.lastDownload) { u.className = 'dirty'; u.textContent = 'Not sent yet'; }
+  else if (meta.lastDownload) { u.className = 'clean'; u.textContent = 'Downloaded ' + new Date(meta.lastDownload).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+  else u.textContent = '';
+  document.querySelectorAll('nav button').forEach((b, i) => { const [a, n] = counts(D.pieces[i].pid); b.textContent = 'Piece ' + (i + 1) + ' · ' + a + '/' + n + (a === n ? ' ✓' : ''); });
+}
+
+function audioUrl(pid){
+  if (!urls[pid]) {
+    const b64 = document.getElementById('audio-' + pid).textContent.trim();
+    const bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    urls[pid] = URL.createObjectURL(new Blob([bytes], {type: 'audio/mpeg'}));
+  }
+  return urls[pid];
+}
+
+function showPiece(i){
+  cur = i; audio.pause(); playEnd = null; playingKey = null;
+  const p = D.pieces[i];
+  audio.src = audioUrl(p.pid); audio.playbackRate = +$('speed').value;
+  document.querySelectorAll('nav button').forEach((b, j) => b.classList.toggle('on', j === i));
+  const list = $('list'); list.innerHTML = '';
+  list.append(el('p', {class: 'mute'}, p.label + (p.meeting ? ' · ' + p.meeting : '')));
+  p.segments.forEach(s => list.append(card(p, s)));
+  window.scrollTo(0, 0);
+  try { localStorage.setItem(KEY + ':piece', String(i)); } catch (e) {}
+}
+
+function card(p, s){
+  const key = p.pid + ':' + s.id;
+  const flags = s.flags || [];
+  const box = el('div', {class: 'seg', id: 'seg-' + key});
+  const spk = el('input', {class: 'spk', value: val(key, 'speaker'), placeholder: 'Speaker name'});
+  spk.setAttribute('list', 'names');
+  const txt = el('textarea', {value: val(key, 'text'), rows: 2});
+  const note = el('input', {class: 'note', value: val(key, 'note') || '', placeholder: 'Note (optional)'});
+  const chg = el('span', {class: 'changed'});
+  const ok = el('button', {});
+  const also = el('div', {class: 'alsoset'});
+  const warn = flags.includes('crosstalk') || flags.includes('notes_mismatch');
+  const chips = [];
+  if (flags.includes('crosstalk')) chips.push(el('span', {class: 'chip x', title: 'People talking over each other here'}, 'several voices'));
+  if (flags.includes('low_speaker_conf')) chips.push(el('span', {class: 'chip', title: 'The computer is unsure who this is'}, 'speaker unsure'));
+  if (flags.includes('notes_mismatch')) chips.push(el('span', {class: 'chip x', title: 'Handwritten notes name someone else here'}, 'notes disagree'));
+
+  function paint(){
+    const done = !!val(key, 'reviewed');
+    box.className = 'seg' + (done ? ' done' : warn ? ' flagged' : '') + (playingKey === key ? ' playing' : '') + (focusKey === key ? ' focus' : '');
+    ok.textContent = done ? '✓ Confirmed' : '✓ Confirm'; ok.className = done ? 'ok' : '';
+    const changed = val(key, 'text') !== s.text || val(key, 'speaker') !== s.speaker;
+    chg.textContent = changed ? 'edited' : '';
+  }
+  function autosize(){ txt.style.height = 'auto'; txt.style.height = (txt.scrollHeight + 4) + 'px'; }
+  txt.addEventListener('input', () => { setField(key, 'text', txt.value); paint(); autosize(); });
+  note.addEventListener('input', () => setField(key, 'note', note.value));
+  spk.addEventListener('change', () => {
+    const v = spk.value.trim(); if (!v) { spk.value = val(key, 'speaker'); return; }
+    setField(key, 'speaker', v); addName(v); paint(); offerAlso(v);
+  });
+  [txt, spk, note].forEach(x => x.addEventListener('focus', () => { focusKey = key; document.querySelectorAll('.seg.focus').forEach(e => e.classList.remove('focus')); box.classList.add('focus'); }));
+  ok.addEventListener('click', () => { setField(key, 'reviewed', !val(key, 'reviewed')); paint(); });
+
+  function offerAlso(name){
+    also.innerHTML = '';
+    const same = p.segments.filter(o => o.id !== s.id && o.speaker === s.speaker && !val(p.pid + ':' + o.id, 'reviewed') && val(p.pid + ':' + o.id, 'speaker') === o.speaker);
+    if (!same.length || s.speaker === name) return;
+    also.append('Also set "' + name + '" on the ' + same.length + ' other unconfirmed "' + s.speaker + '" lines in this piece? ',
+      el('button', {onclick: () => { same.forEach(o => setField(p.pid + ':' + o.id, 'speaker', name)); also.innerHTML = ''; showPieceKeep(); }}, 'Yes'), ' ',
+      el('button', {onclick: () => also.innerHTML = ''}, 'No'));
+  }
+
+  box._paint = paint;
+  box._focus = () => txt.focus();
+  box.append(
+    el('div', {class: 'row'}, el('span', {class: 'time'}, hms(s.start)), spk, ...chips, chg),
+    txt,
+    el('div', {class: 'row'}, el('button', {onclick: () => play(p, s)}, '▶ Play'), ok, el('span', {class: 'grow'})),
+    also,
+    note);
+  paint(); requestAnimationFrame(autosize);
+  return box;
+}
+
+function showPieceKeep(){ const y = window.scrollY; showPiece(cur); window.scrollTo(0, y); }
+
+function play(p, s){
+  const key = p.pid + ':' + s.id;
+  const prev = playingKey; playingKey = key;
+  [prev, key].forEach(k => { const b = k && document.getElementById('seg-' + k); if (b) b._paint(); });
+  audio.currentTime = Math.max(0, s.start - p.offset - 0.3);
+  playEnd = $('cont').checked ? null : s.end - p.offset + 0.4;
+  audio.play();
+}
+audio.addEventListener('timeupdate', () => { if (playEnd !== null && audio.currentTime >= playEnd) { audio.pause(); playEnd = null; } });
+$('speed').addEventListener('change', () => audio.playbackRate = +$('speed').value);
+
+function addName(n){
+  if (D.speakers.includes(n)) return;
+  D.speakers.push(n); $('names').append(el('option', {value: n}));
+}
+
+function download(){
+  const out = {format: D.format, kit_id: D.kit_id, reviewer: D.reviewer, saved_at: new Date().toISOString(), edits};
+  const blob = new Blob([JSON.stringify(out, null, 1)], {type: 'application/json'});
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  const name = 'edits_' + D.reviewer.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '_' +
+    d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
+  const a = el('a', {href: URL.createObjectURL(blob), download: name});
+  document.body.append(a); a.click(); a.remove();
+  meta.lastDownload = Date.now(); persist(); refreshTop();
+}
+
+function loadFile(f){
+  const r = new FileReader();
+  r.onload = () => {
+    let o; try { o = JSON.parse(r.result); } catch (e) { alertBox('That file is not an edits file.'); return; }
+    if (o.kit_id !== D.kit_id) { alertBox('That edits file belongs to ' + (o.reviewer || 'another kit') + ', not to this page.'); return; }
+    let n = 0;
+    for (const k in (o.edits || {})) { if (!orig[k]) continue; if (!edits[k] || (o.edits[k].t || 0) > (edits[k].t || 0)) { edits[k] = o.edits[k]; n++; } }
+    persist(); showPiece(cur); refreshTop(); alertBox('Loaded ' + n + ' lines from ' + f.name + '.');
+  };
+  r.readAsText(f);
+}
+function alertBox(msg){ const b = $('banner'); b.style.display = 'block'; b.textContent = msg; setTimeout(() => { if (b.textContent === msg && storageOk) b.style.display = 'none'; }, 6000); }
+
+function cards(){ return Array.from(document.querySelectorAll('.seg')); }
+document.addEventListener('keydown', e => {
+  if (!e.ctrlKey || !focusKey) return;
+  const p = D.pieces[cur];
+  const sid = +focusKey.split(':')[1];
+  const s = p.segments.find(x => x.id === sid); if (!s) return;
+  if (e.code === 'Space') { e.preventDefault(); play(p, s); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (!val(focusKey, 'reviewed')) setField(focusKey, 'reviewed', true);
+    const box = document.getElementById('seg-' + focusKey); box._paint();
+    const all = cards(), next = all[all.indexOf(box) + 1];
+    if (next) { next._focus(); next.scrollIntoView({block: 'center', behavior: 'smooth'}); const ns = p.segments[all.indexOf(next)]; if (ns) play(p, ns); }
+  }
+});
+
+window.addEventListener('beforeunload', e => { if (meta.lastChange > meta.lastDownload) { e.preventDefault(); e.returnValue = ''; } });
+function fitHeader(){ document.documentElement.style.setProperty('--hdr', $('hdr').offsetHeight + 'px'); }
+window.addEventListener('resize', fitHeader);
+
+$('title').textContent = 'SLC transcript review · ' + D.reviewer;
+D.speakers.forEach(n => $('names').append(el('option', {value: n})));
+D.pieces.forEach((p, i) => $('tabs').append(el('button', {onclick: () => showPiece(i)}, 'Piece ' + (i + 1))));
+$('dl').onclick = download;
+$('helpbtn').onclick = () => $('help').style.display = 'flex';
+$('helpok').onclick = () => { $('help').style.display = 'none'; meta.helpSeen = true; persist(); };
+$('loadlink').onclick = e => { e.preventDefault(); $('loadfile').click(); };
+$('loadfile').onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; $('help').style.display = 'none'; };
+
+load();
+let start = 0; try { start = Math.min(D.pieces.length - 1, +(localStorage.getItem(KEY + ':piece') || 0)); } catch (e) {}
+showPiece(start); refreshTop(); fitHeader();
+if (!meta.helpSeen) $('help').style.display = 'flex';
+})();
+</script>
+</body>
+</html>

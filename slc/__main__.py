@@ -131,6 +131,51 @@ def cmd_review(args):
     app.run(host="127.0.0.1", port=args.port, threaded=True)  # localhost only: no login yet
 
 
+def cmd_kit(args):
+    from slc.kit import make_kits
+    for wd in args.workdirs:
+        for f in ("transcript.json", "aligned/mix.wav"):
+            need_files(os.path.join(wd, f))
+    people = [n.strip() for n in args.people.split(",") if n.strip()] if args.people else None
+    names = []
+    if args.names:
+        need_files(args.names)
+        with open(args.names, encoding="utf-8") as f:
+            names += [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
+    if args.notes:
+        need_files(args.notes)
+        from slc.notes import parse_notes
+        names += sorted({n["name"] for n in parse_notes(args.notes)})
+    try:
+        man = make_kits(args.workdirs, args.out, people=people, per=args.per, piece_s=args.piece_min * 60,
+                        names=names, include_reviewed=args.include_reviewed)
+    except (FileExistsError, ValueError) as e:
+        die(str(e))
+    print(f"{len(man['kits'])} kits, {len(man['pieces'])} pieces. Send each person their review_*.html "
+          f"plus reviewer-guide.pdf; keep manifest.json here.")
+
+
+def cmd_import_edits(args):
+    from slc.kit import import_edits
+    need_files(os.path.join(args.kits, "manifest.json"), *args.files)
+    r = import_edits(args.kits, args.files, export=not args.no_export)
+    for p in r["problems"]:
+        print(f"warning: {p}")
+    for who, st in sorted(r["stats"].items()):
+        print(f"{who:<20} {st['confirmed']:>4} confirmed  {st['text']:>4} text fixes  "
+              f"{st['speaker']:>4} speaker fixes  {st['notes']:>3} notes")
+    if args.files and not r["stats"]:
+        print("nothing new in these files (already imported)")
+    if r["conflicts"]:
+        print(f"{r['conflicts']} lines were edited by more than one person; the newest edit was kept")
+    if r["workdirs"]:
+        print("updated + re-exported: " + ", ".join(os.path.basename(w) for w in r["workdirs"]))
+    print("\nprogress (confirmed / lines):")
+    for row in r["status"]:
+        pct = 100 * row["done"] / row["total"] if row["total"] else 0
+        print(f"  {row['reviewer']:<20} {row['done']:>4} / {row['total']:<4} {pct:5.1f}%  {row['file']}")
+
+
 def cmd_library(args):
     from slc.voicelib import VoiceLibrary
     lib = VoiceLibrary(args.library)
@@ -205,6 +250,23 @@ def main():
     s.add_argument("--library", help="Voice library (adds its names to the speaker list)")
     s.add_argument("--port", type=int, default=8000)
     s.set_defaults(fn=cmd_review)
+
+    s = sub.add_parser("kit", help="Offline review kits: one HTML page per checker, audio inside")
+    s.add_argument("workdirs", nargs="+", help="One or more meeting/clip work dirs (in time order)")
+    s.add_argument("--out", required=True, help="New folder for the kits (keep its manifest.json)")
+    s.add_argument("--people", help='Comma list of checkers, e.g. "Asha,Ravi,Meena"; pieces split evenly')
+    s.add_argument("--per", type=int, default=5, help="Pieces per checker when --people is not given")
+    s.add_argument("--piece-min", type=float, default=4.0, help="Piece length in minutes (default 4)")
+    s.add_argument("--names", help="Text file of speaker names/roles to suggest (one per line)")
+    s.add_argument("--notes", help="Handwritten notes file; its speaker labels are suggested too")
+    s.add_argument("--include-reviewed", action="store_true", help="Also hand out fully reviewed pieces")
+    s.set_defaults(fn=cmd_kit)
+
+    s = sub.add_parser("import-edits", help="Merge edits files sent back by checkers")
+    s.add_argument("kits", help="The kits folder (with manifest.json)")
+    s.add_argument("files", nargs="*", help="edits_*.json files (none: just show progress)")
+    s.add_argument("--no-export", action="store_true", help="Do not re-write out/transcript.*")
+    s.set_defaults(fn=cmd_import_edits)
 
     s = sub.add_parser("library", help="List / edit the voice library")
     s.add_argument("--library", required=True)
