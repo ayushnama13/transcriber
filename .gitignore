@@ -15,3 +15,10 @@ recordings/
 *.flac
 *.amr
 kits/
+.env
+.env.*
+!.env.example
+!.env.template
+.DS_Store
+*.pem
+*.jks
